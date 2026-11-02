@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="porttide-token" content="__PORTTIDE_TOKEN__" />
+    <title>PortTide — локальный менеджер прокси</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="/"
+        ><span class="brandmark">≋</span
+        ><span>PortTide<small>LOCAL PROXY MANAGER</small></span></a
+      >
+      <div class="side-section">
+        <span class="eyebrow">РАБОЧЕЕ ПРОСТРАНСТВО</span>
+        <div class="nav-active">
+          ◈ <span>Профили</span><span id="profile-count" class="count">0</span>
+        </div>
+      </div>
+      <div class="side-section subscriptions-heading">
+        <span class="eyebrow">ПОДПИСКИ</span
+        ><button
+          id="add-source-small"
+          class="icon-button"
+          aria-label="Добавить подписку"
+        >
+          +
+        </button>
+      </div>
+      <div id="source-list"></div>
+      <div class="sidebar-bottom">
+        <span class="local-dot"></span> Работает на этом компьютере<small
+          id="version"
+        ></small
+        ><button id="open-settings" class="secondary full">
+          Настройки прокси
+        </button>
+      </div>
+    </aside>
+    <main>
+      <header class="page-header">
+        <div>
+          <div class="eyebrow">ВАШИ ПОДКЛЮЧЕНИЯ</div>
+          <h1>Каждый маршрут — на виду.</h1>
+          <p class="muted">
+            Выбирайте профиль. Проверяйте соединение. Подключайте свои
+            приложения.
+          </p>
+        </div>
+        <button id="add-source" class="primary">＋ Добавить подписку</button>
+      </header>
+      <div id="notice" class="notice hidden" role="status"></div>
+      <section class="connection-card" aria-label="Текущее подключение">
+        <div class="connection-top">
+          <span id="runtime-badge" class="status-badge">Остановлен</span
+          ><span class="muted small">Только локальный прокси</span>
+        </div>
+        <div class="connection-body">
+          <div>
+            <h2 id="active-name">Выберите свой первый профиль</h2>
+            <p id="active-hint" class="muted">
+              Добавьте подписку или импортируйте JSON-файл.
+            </p>
+          </div>
+          <button id="stop-proxy" class="secondary hidden">Остановить</button>
+        </div>
+        <div class="connection-footer">
+          <code id="proxy-address">127.0.0.1:17890</code
+          ><span id="auth-label" class="muted small"></span
+          ><button id="copy-address" class="text-button">
+            Копировать адрес</button
+          ><button id="connection-details" class="text-button">
+            Параметры подключения ↗
+          </button>
+        </div>
+      </section>
+      <section class="catalog-panel">
+        <div class="panel-heading">
+          <h2>Профили <span id="filtered-count" class="muted small"></span></h2>
+          <div class="filters">
+            <label class="search"
+              ><span aria-hidden="true">⌕</span
+              ><input
+                id="search"
+                type="search"
+                placeholder="Страна, название или эмодзи"
+                aria-label="Поиск профилей" /></label
+            ><select id="source-filter" aria-label="Фильтр подписок">
+              <option value="">Все подписки</option>
+            </select>
+          </div>
+        </div>
+        <div id="empty" class="empty">
+          <div class="empty-symbol">≋</div>
+          <h3>Сначала добавим источник</h3>
+          <p>
+            Вставьте ссылку на подписку в формате Xray JSON<br />или выберите
+            сохранённый файл.
+          </p>
+          <button id="empty-add" class="primary">Добавить подписку</button>
+        </div>
+        <div id="profile-table-wrap" class="table-scroll hidden">
+          <table class="profile-table">
+            <thead>
+              <tr>
+                <th>Название / протокол</th>
+                <th>HTTPS-задержка</th>
+                <th>Выход</th>
+                <th>Скорость ↓</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody id="profiles"></tbody>
+          </table>
+        </div>
+        <div id="no-matches" class="empty hidden">
+          <h3>Ничего не найдено</h3>
+          <p>Попробуйте другое название или снимите фильтр подписки.</p>
+        </div>
+      </section>
+      <section class="diagnostics-panel" id="diagnostics-panel">
+        <div class="panel-heading">
+          <div>
+            <div class="eyebrow">ДИАГНОСТИКА</div>
+            <h2 id="diagnostic-title">Проверьте профиль перед выбором</h2>
+          </div>
+          <button id="cancel-test" class="secondary hidden">
+            Отменить проверку
+          </button>
+        </div>
+        <p class="muted small">
+          Проверки идут через отдельное подключение выбранного профиля. Рабочий
+          прокси сохраняет свой маршрут.
+        </p>
+        <div id="test-progress" class="test-progress hidden" role="status">
+          <span class="spinner"></span><span id="progress-text"></span>
+        </div>
+        <div id="test-actions" class="test-actions hidden">
+          <button data-test="latency" class="secondary">◷ Задержка</button
+          ><button data-test="geo" class="secondary">◎ IP и география</button
+          ><button data-test="speed" class="secondary">↯ Скорость</button
+          ><span class="muted small"
+            >До 20 MB ↓ и 4 MiB ↑, до 15 секунд на направление.</span
+          >
+        </div>
+        <div id="diagnostic-empty" class="diagnostic-empty">
+          Нажмите «Проверки» рядом с профилем. Здесь появятся результаты с
+          указанием источника и времени.
+        </div>
+        <div id="test-results"></div>
+      </section>
+      <footer>
+        Подписи и эмодзи поступают от поставщика. Результаты проверок
+        показываются отдельно.<br />PortTide не меняет системный прокси, TUN или
+        правила маршрутизации.
+      </footer>
+    </main>
+    <div id="toast" class="toast hidden" role="status"></div>
+    <dialog id="source-dialog">
+      <form id="source-form">
+        <div class="dialog-heading">
+          <div>
+            <span class="eyebrow">ИСТОЧНИК ПРОФИЛЕЙ</span>
+            <h2 id="source-dialog-title">Новая подписка</h2>
+          </div>
+          <button
+            type="button"
+            data-close="source-dialog"
+            class="icon-button"
+            aria-label="Закрыть"
+          >
+            ×
+          </button>
+        </div>
+        <input id="source-id" type="hidden" /><label
+          >Название<input
+            id="source-name"
+            required
+            maxlength="200"
+            placeholder="Например, основная подписка" /></label
+        ><label
+          >Ссылка на подписку<input
+            id="source-url"
+            type="url"
+            placeholder="https://…"
+            autocomplete="off"
+            spellcheck="false"
+        /></label>
+        <p id="source-url-hint" class="muted small"></p>
+        <div class="divider">или импортируйте файл</div>
+        <label class="file-input"
+          >JSON-файл<input
+            id="source-file"
+            type="file"
+            accept=".json,application/json"
+        /></label>
+        <details>
+          <summary>Параметры загрузки</summary>
+          <label
+            >User-Agent<input
+              id="source-agent"
+              value="Happ/2.0.0"
+              maxlength="256"
+          /></label>
+          <p class="muted small">
+            Некоторые поставщики выбирают формат ответа по User-Agent. Здесь он
+            запрашивает Happ-совместимый формат.
+          </p>
+        </details>
+        <p id="source-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button type="button" data-close="source-dialog" class="secondary">
+            Отмена</button
+          ><button id="source-submit" class="primary" type="submit">
+            Загрузить профили
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="settings-dialog">
+      <form id="settings-form">
+        <div class="dialog-heading">
+          <div>
+            <span class="eyebrow">ЛОКАЛЬНОЕ ПОДКЛЮЧЕНИЕ</span>
+            <h2>Настройки прокси</h2>
+          </div>
+          <button
+            type="button"
+            data-close="settings-dialog"
+            class="icon-button"
+            aria-label="Закрыть"
+          >
+            ×
+          </button>
+        </div>
+        <p class="muted small">
+          Все входы слушают только 127.0.0.1. Эти параметры можно указать в
+          Clash или другом приложении.
+        </p>
+        <label
+          >Режим<select id="proxy-mode">
+            <option value="mixed">Mixed — HTTP и SOCKS5 на одном порту</option>
+            <option value="separate">Раздельные порты HTTP и SOCKS5</option>
+          </select></label
+        >
+        <div class="two-columns">
+          <label
+            >SOCKS5 / mixed-порт<input
+              id="socks-port"
+              type="number"
+              min="1024"
+              max="65535"
+              required /></label
+          ><label
+            >HTTP-порт<input
+              id="http-port"
+              type="number"
+              min="1024"
+              max="65535"
+          /></label>
+        </div>
+        <label class="checkbox"
+          ><input id="proxy-auth" type="checkbox" /> Авторизация по логину и
+          паролю</label
+        >
+        <div class="two-columns">
+          <label
+            >Логин<input
+              id="proxy-user"
+              autocomplete="off"
+              maxlength="255" /></label
+          ><label
+            >Пароль<input
+              id="proxy-password"
+              type="password"
+              autocomplete="new-password"
+              maxlength="255"
+          /></label>
+        </div>
+        <label class="checkbox"
+          ><input id="show-password" type="checkbox" /> Показать пароль</label
+        ><label class="checkbox"
+          ><input id="proxy-udp" type="checkbox" /> UDP через SOCKS5, если
+          профиль его поддерживает</label
+        >
+        <details>
+          <summary>Ядро и обновление подписок</summary>
+          <label
+            >Путь к Xray<input
+              id="core-path"
+              placeholder="Автоматически из папки core" /></label
+          ><label
+            >Интервал обновления, минут<input
+              id="refresh-minutes"
+              type="number"
+              min="5"
+              max="10080"
+              required
+          /></label>
+          <p class="muted small">
+            Активный профиль восстанавливается при следующем запуске PortTide.
+            Кнопка «Остановить» отключает это восстановление.
+          </p>
+        </details>
+        <p id="settings-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button type="button" id="shutdown" class="danger-text">
+            Завершить PortTide</button
+          ><button type="submit" class="primary">Сохранить</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="metadata-dialog">
+      <div class="dialog-heading">
+        <h2 id="metadata-title">Подписка</h2>
+        <button
+          data-close="metadata-dialog"
+          class="icon-button"
+          aria-label="Закрыть"
+        >
+          ×
+        </button>
+      </div>
+      <div id="metadata-content"></div>
+    </dialog>
+    <template id="profile-template"
+      ><tr>
+        <td>
+          <button
+            class="profile-name text-button"
+            data-action="inspect"
+          ></button>
+          <div class="profile-meta"></div>
+          <div class="profile-reason"></div>
+        </td>
+        <td class="latency-cell muted">—</td>
+        <td class="geo-cell muted">—</td>
+        <td class="speed-cell muted">—</td>
+        <td>
+          <div class="row-actions">
+            <button class="secondary small-button" data-action="inspect">
+              Проверки</button
+            ><button class="primary small-button" data-action="select">
+              Подключить
+            </button>
+          </div>
+        </td>
+      </tr></template
+    >
+  </body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "schema": 1,
+  "proxy": {"mode": "mixed", "socksPort": 17890, "httpPort": 17891, "auth": true, "udp": true},
+  "sources": [{"name": "My subscription", "url": "https://example.invalid/replace-with-your-subscription", "userAgent": "Happ/2.0.0"}],
+  "refreshMinutes": 180
+}

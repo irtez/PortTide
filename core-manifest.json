@@ -1,0 +1,8 @@
+{
+  "version": "26.10.31",
+  "source": "https://github.com/XTLS/Xray-core/tree/v26.10.31",
+  "assets": {
+    "linux-amd64": {"file": "Xray-linux-64.zip", "sha256": "e4bd9119f50ae7c41658b1abd0679ae06f98bd864a2907ff33f2f2cf7081b214"},
+    "windows-amd64": {"file": "Xray-windows-64.zip", "sha256": "2e04a9995a6f2ad1b28c0bb25c708ecb2695e43a1c9c7889c4b6ac2b48cf7a6a"}
+  }
+}

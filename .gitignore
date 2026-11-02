@@ -1,0 +1,7 @@
+.tools/
+bin/
+dist/
+core/
+.local/
+*.log
+coverage.out
