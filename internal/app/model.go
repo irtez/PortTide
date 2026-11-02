@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const Version = "0.1.0-alpha.1"
+const Version = "0.1.0-alpha.2"
 const MaxSubscriptionBytes int64 = 4 << 20
 
 type ProxySettings struct {

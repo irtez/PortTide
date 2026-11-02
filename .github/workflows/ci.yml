@@ -30,12 +30,12 @@ jobs:
       - name: Tests and race detector (Linux)
         if: runner.os == 'Linux'
         env:
-          PORTTIDE_TEST_CORE: core/xray
+          PORTTIDE_TEST_CORE: ${{ github.workspace }}/core/xray
         run: go test -race ./...
       - name: Native Windows tests
         if: runner.os == 'Windows'
         env:
-          PORTTIDE_TEST_CORE: core/xray.exe
+          PORTTIDE_TEST_CORE: ${{ github.workspace }}/core/xray.exe
         run: go test ./...
       - run: go vet ./...
       - name: JavaScript syntax
@@ -67,4 +67,4 @@ jobs:
       - name: Publish pre-release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" release-assets/*.zip release-assets/*.sha256 --verify-tag --prerelease --title "PortTide $GITHUB_REF_NAME" --notes-file docs/releases/0.1.0-alpha.1.md
+        run: gh release create "$GITHUB_REF_NAME" release-assets/*.zip release-assets/*.sha256 --verify-tag --prerelease --title "PortTide $GITHUB_REF_NAME" --notes-file docs/releases/0.1.0-alpha.2.md

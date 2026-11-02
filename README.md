@@ -57,7 +57,7 @@ go vet ./...
 go run ./cmd/porttide --data-dir .local --no-browser
 ```
 
-On Windows, fetch `--platform windows-amd64`, set `PORTTIDE_TEST_CORE` to `core/xray.exe`, and run `go test ./...`. Core-less unit tests run without that variable; integration tests explicitly report a skip.
+On Windows, fetch `--platform windows-amd64`, set `PORTTIDE_TEST_CORE` to the absolute path of `core/xray.exe`, and run `go test ./...`. Core-less unit tests run without that variable; integration tests explicitly report a skip.
 
 ```sh
 python3 scripts/package.py
