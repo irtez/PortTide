@@ -1,6 +1,6 @@
 # PortTide — first working release
 
-Status: initial alpha implemented, 2026-11-02. Local Linux/Windows checks and browser inspection passed; remote CI and release publication pending. Implementation authorized in the project discussion.
+Status: completed for the initial alpha, 2026-11-02. Local and GitHub CI Windows/Linux checks passed. The portable v0.1.0-alpha.2 pre-release is published. Implementation authorized in the project discussion.
 
 ## Agreed product boundary
 
@@ -36,4 +36,4 @@ A clean user can launch a release, add a supported subscription, inspect names/m
 
 ## Next action
 
-Run the public CI, package the first alpha, and collect feedback. Live upstream throughput and geography checks remain an explicit follow-up; they were not run during the user’s gaming session. Do not connect or replace an existing daily proxy automatically.
+Collect feedback on https://github.com/irtez/PortTide/releases/tag/v0.1.0-alpha.2 . Live upstream throughput and geography checks remain an explicit follow-up; they were not run during the user’s gaming session. Do not connect or replace an existing daily proxy automatically.

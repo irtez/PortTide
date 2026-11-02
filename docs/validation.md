@@ -13,3 +13,5 @@
 Live Internet latency/throughput/geography runs are not claimed by this validation. They were deliberately deferred while the user was gaming. Public diagnostic services may be unavailable or rate-limited; the application reports those failures.
 
 The initial CI attempt exposed relative core paths resolved from the Go package directory. The failure was reproduced locally; the workflow now passes absolute core paths. Published tags are retained without rewriting history.
+
+Corrected public CI passed on Windows and Linux: https://github.com/irtez/PortTide/actions/runs/41509115970 . Release v0.1.0-alpha.2 was published with a Windows x64 ZIP and SHA-256 checksum. Release code commit: 0e0d711c207a9dfe73d38259e514dc88189374d8.
