@@ -31,3 +31,15 @@ Corrected public CI passed on Windows and Linux: https://github.com/irtez/PortTi
 ## Windows daily use (local, unreleased)
 
 Implementation and detailed lifecycle/installer verification: [windows-lifecycle.md](windows-lifecycle.md). This adds tray/background preferences, per-user installation, authenticated instance handoff, update checks/staged installer download and web-panel reconnect. Actual isolated installer installation, running/paused upgrades and uninstall were tested on Windows. No new release/tag/publication and no changes to production Clash.
+
+## Published v0.1.0-alpha.3 — 2026-11-03
+
+- Release commit: `10a65a629abc913d4c9e199a346137c5425b1d2c`; includes the final search alignment and count-label corrections.
+- Main CI: https://github.com/irtez/PortTide/actions/runs/41544013746 — Windows/Linux tests, race detector, vet, JS syntax, ZIP and installer build passed.
+- Tag/release CI: https://github.com/irtez/PortTide/actions/runs/41544368946 — passed, including publication.
+- Public prerelease: https://github.com/irtez/PortTide/releases/tag/v0.1.0-alpha.3 .
+- Installer: 15,685,594 bytes, SHA-256 `33e72f317cfa18274ee49fcb97a2299026fdbb020fae6c54be93660bd7786af8`.
+- ZIP: 20,513,498 bytes, SHA-256 `59a5fa52040322971b47aac5e539068f3562f56139d5b7a3f87f44ec5a395a83`.
+- Both published files were downloaded again; hashes matched the GitHub asset digests and published `.sha256` files.
+- ZIP inspection found the expected 14 distribution files and no private state/cache/log files. Its Windows executable printed `0.1.0-alpha.3` with `--version`, exit 0.
+- The previous local preview successfully detected alpha.3 through the real update API after publication. No production installation or proxy routing was changed.
