@@ -269,8 +269,8 @@ function renderRows() {
   );
   $("filtered-count").textContent =
     profiles.length === state.profiles.length
-      ? String(profiles.length)
-      : profiles.length + " / " + state.profiles.length;
+      ? "Профилей: " + profiles.length
+      : "Найдено: " + profiles.length + " из " + state.profiles.length;
   show("empty", !state.profiles.length);
   show("profile-table-wrap", Boolean(profiles.length));
   show("no-matches", state.profiles.length > 0 && !profiles.length);
