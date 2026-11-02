@@ -294,7 +294,7 @@ func measureThroughput(ctx context.Context, c *http.Client, upload bool, o speed
 	m.Limit = "time"
 	if measured.limited {
 		m.Limit = "bytes"
-		m.Warning = "Достигнут лимит трафика"
+		m.Warning = "Лимит теста: 1 ГиБ"
 	}
 	if m.Failures > 0 {
 		m.Partial = true
