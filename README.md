@@ -2,7 +2,6 @@
 
 A local proxy subscription manager for Windows, with a tray icon, background operation and an embedded browser interface. **Early alpha.**
 
-> This README describes the development branch. Installer, tray and update support are not yet included in the published `0.1.0-alpha.2`.
 
 [Инструкция на русском](README.ru.md)
 

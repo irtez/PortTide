@@ -1,6 +1,6 @@
 # Windows daily-use implementation — 2026-11-03
 
-Status: implemented locally; final validation below. No new public release authorized.
+Status: implemented and locally validated. Release v0.1.0-alpha.3 authorized on 2026-11-03; publication verification is recorded in validation.md.
 
 ## Agreed behavior
 
@@ -20,7 +20,7 @@ Status: implemented locally; final validation below. No new public release autho
 1. Lifecycle/settings: add desktop preferences with explicit migration from legacy autoStart, stable source selection, start/stop helpers and update-resume state. Test migration, fallback order, stopped session vs next boot, update resume.
 2. Single instance/Windows host: process-owned data lock and authenticated local handoff; hidden native window, tray and user Run-key integration. Test lock lifetime/handoff/native struct sizes and registry round trip with an isolated test value. Smoke launch in isolated temp data without desktop control.
 3. App settings/UI: separate application settings from proxy settings; background/logon/connect, core/refresh, updates, exit; connection recovery with refreshed API token. Validate JS and browser-only interaction.
-4. Distribution/update: per-user Inno Setup at stable path, Start/Desktop shortcuts using --open, install/upgrade/uninstall coordination, optional user-data removal. GitHub release discovery, semantic version ordering, strict official asset URLs/digest, staged download before installer launch. Preserve paused state through installer restart; installer failure must retain recoverable old settings. Unit tests with local fake releases/downloads; compile installer locally only if tooling available. No publication or version bump.
+4. Distribution/update: per-user Inno Setup at stable path, Start/Desktop shortcuts using --open, install/upgrade/uninstall coordination, optional user-data removal. GitHub release discovery, semantic version ordering, strict official asset URLs/digest, staged download before installer launch. Preserve paused state through installer restart; installer failure must retain recoverable old settings. Unit tests with local fake releases/downloads; compile installer locally only if tooling available. Version bump and publication follow explicit release authorization.
 5. General README and validation notes; full Linux race/vet and native Windows tests; inspect diff/secrets; local scoped commits.
 
 ## File boundaries
@@ -35,7 +35,7 @@ Status: implemented locally; final validation below. No new public release autho
 
 ## Validation boundaries
 
-Windows native UI automation is not authorized; inspect via APIs/process state and browser extension only. Test autostart under a temporary registry value; do not silently register the development preview as the user's production startup. No new real throughput test needed. No push/tag/release while release hold remains.
+Windows native UI automation is not authorized; inspect via APIs/process state and browser extension only. Test autostart under a temporary registry value; do not silently register the development preview as the user's production startup. No new real throughput test needed. Release hold lifted by the user on 2026-11-03; production installation remains unchanged.
 
 ## Observed validation (2026-11-03)
 
@@ -51,4 +51,4 @@ Windows native UI automation is not authorized; inspect via APIs/process state a
 - Chrome extension verified the separate Application dialog, default background setting, save/reopen, unchanged proxy settings and a real GitHub version check.
 - The already-open browser tab recovered automatically after a prepare-update/resume cycle, including API-token renewal, with all 49 preview profiles intact. No tab reload was used for recovery.
 
-Remaining release work: choose a new version and release notes, publish only when the user lifts the release hold. The full network download-to-new-public-release path cannot be exercised until an installer release exists; download integrity/error cases and actual installer upgrade were verified separately. Windows logoff/reboot and interactive tray menu clicks were not automated; global desktop control remains disallowed.
+Release target: v0.1.0-alpha.3, including the final search alignment and profile-count label fixes. The full network download-to-new-public-release path cannot be exercised until an installer release exists; download integrity/error cases and actual installer upgrade were verified separately. Windows logoff/reboot and interactive tray menu clicks were not automated; global desktop control remains disallowed.
