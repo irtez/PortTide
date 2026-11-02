@@ -1,13 +1,14 @@
 "use strict";
-const $ = (id) => document.getElementById(id),
-  accessToken = document.querySelector('meta[name="porttide-token"]').content;
+const $ = (id) => document.getElementById(id);
+let accessToken = document.querySelector('meta[name="porttide-token"]').content;
 let state = null,
   inspected = "",
   shuttingDown = false,
   busy = false,
   lastSignature = "",
   toastTimer,
-  refreshing = false;
+  refreshing = false,
+  disconnects = 0;
 const kindName = {
   latency: "HTTPS-задержка",
   geo: "IP и география",
@@ -35,7 +36,7 @@ function toast(message, error = false) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => show("toast", false), error ? 7000 : 3000);
 }
-async function api(path, body, method) {
+async function api(path, body, method, retry = true) {
   const opts = {
     method: method || (body === undefined ? "GET" : "POST"),
     headers: { "X-PortTide-Token": accessToken },
@@ -45,6 +46,12 @@ async function api(path, body, method) {
     opts.body = JSON.stringify(body || {});
   }
   const response = await fetch("/api" + path, opts);
+  if (response.status === 401 && retry) {
+    const page = await fetch("/", { cache: "no-store" });
+    const doc = new DOMParser().parseFromString(await page.text(), "text/html");
+    const token = doc.querySelector('meta[name="porttide-token"]')?.content;
+    if (token) { accessToken = token; return api(path, body, method, false); }
+  }
   let result;
   try {
     result = await response.json();
@@ -56,20 +63,26 @@ async function api(path, body, method) {
   return result;
 }
 async function refresh() {
-  if (shuttingDown || refreshing) return;
+  if (refreshing) return;
   refreshing = true;
   try {
     const next = await api("/state");
+    if (shuttingDown && next.instanceId === state?.instanceId) return;
     const signature = JSON.stringify(next);
     state = next;
+    disconnects = 0;
+    shuttingDown = false;
+    show("connection-notice", false);
     if (signature !== lastSignature) {
       lastSignature = signature;
       render();
     }
   } catch (e) {
-    $("notice").textContent =
-      "Нет связи с PortTide. Запустите приложение и обновите страницу.";
-    show("notice");
+    disconnects++;
+    $("connection-notice").textContent = shuttingDown
+      ? "PortTide завершён. Для запуска используйте ярлык приложения."
+      : disconnects < 4 ? "Переподключение…" : "PortTide недоступен. Если приложение закрыто, запустите его через ярлык. Панель подключится автоматически.";
+    show("connection-notice");
   } finally {
     refreshing = false;
   }
@@ -116,6 +129,7 @@ function render() {
   renderRows();
   renderDiagnostics();
   renderProgress();
+  renderUpdates();
 }
 function subscriptionUsage(meta) {
   const fields = {};
@@ -554,9 +568,6 @@ function settingsDialog() {
   $("proxy-password").type = "password";
   $("show-password").checked = false;
   $("proxy-udp").checked = p.udp;
-  $("core-path").value = state.corePath;
-  $("core-path").placeholder = state.coreResolved;
-  $("refresh-minutes").value = state.refreshMinutes;
   $("settings-error").textContent = "";
   updateSettingsControls();
   $("settings-dialog").showModal();
@@ -614,7 +625,7 @@ $("profiles").onclick = (e) => {
       b.disabled = true;
       try {
         await api("/select", { id });
-        toast("Профиль подключён");
+        toast("Прокси запущен");
       } finally {
         b.disabled = false;
       }
@@ -684,8 +695,8 @@ $("settings-form").onsubmit = async (e) => {
         password: $("proxy-password").value,
         udp: $("proxy-udp").checked,
       },
-      corePath: $("core-path").value,
-      refreshMinutes: Number($("refresh-minutes").value),
+      corePath: state.corePath,
+      refreshMinutes: state.refreshMinutes,
     });
     $("settings-dialog").close();
     toast("Настройки сохранены");
@@ -701,7 +712,7 @@ $("shutdown").onclick = () => {
     action(async () => {
       await api("/shutdown", {});
       shuttingDown = true;
-      $("settings-dialog").close();
+      $("app-settings-dialog").close();
       $("notice").textContent = "PortTide завершён. Эту вкладку можно закрыть.";
       show("notice");
       $("runtime-badge").textContent = "Завершён";
@@ -709,7 +720,8 @@ $("shutdown").onclick = () => {
       show("stop-proxy", false);
     });
 };
-refresh();
+refresh().then(() => { if (location.hash === "#settings") appSettingsDialog(); });
+window.addEventListener("hashchange", () => { if (location.hash === "#settings") appSettingsDialog(); });
 setInterval(refresh, 2000);
 setInterval(renderProgress, 1000);
 $("open-test-job").onclick = () => {
@@ -753,3 +765,50 @@ function friendlyMetadata(meta) {
   }
   return result;
 }
+
+function appSettingsDialog() {
+  if (!state) return;
+  const d = state.desktop;
+  $("start-at-login").checked = d.startAtLogin;
+  $("start-at-login").disabled = !state.desktopSupported;
+  $("connect-on-launch").checked = d.connectOnLaunch;
+  $("background-launch").checked = d.background;
+  $("core-path").value = state.corePath;
+  $("core-path").placeholder = state.coreResolved;
+  $("refresh-minutes").value = state.refreshMinutes;
+  $("app-settings-error").textContent = "";
+  renderUpdates();
+  if (!$("app-settings-dialog").open) $("app-settings-dialog").showModal();
+}
+function renderUpdates() {
+  const u = state.updates || {};
+  show("update-notice", !!u.available);
+  $("update-notice-text").textContent = u.available ? "Доступна версия " + u.version : "";
+  $("update-status").textContent = u.error || u.phase || (u.checking ? "Проверяем…" : u.available ? "Доступна версия " + u.version : u.checkedAt && !u.checkedAt.startsWith("0001") ? "Установлена актуальная версия" : "Текущая версия: " + state.version);
+  $("check-updates").disabled = !!(u.checking || u.installing);
+  show("release-notes", !!u.page);
+  if (u.page) $("release-notes").href = u.page;
+  show("install-update", !!(u.available && u.canInstall));
+  $("install-update").disabled = !!(u.checking || u.installing || state.job.running);
+  show("update-restart-hint", !!(u.available && u.canInstall));
+}
+$("open-app-settings").onclick = $("open-update").onclick = appSettingsDialog;
+$("check-updates").onclick = () => action(() => api("/updates/check", {}));
+$("install-update").onclick = () => action(() => api("/updates/install", {}));
+$("app-settings-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const button = e.submitter;
+  button.disabled = true;
+  $("app-settings-error").textContent = "";
+  try {
+    await api("/desktop", {
+      desktop: {startAtLogin: $("start-at-login").checked, connectOnLaunch: $("connect-on-launch").checked, background: $("background-launch").checked},
+      corePath: $("core-path").value,
+      refreshMinutes: Number($("refresh-minutes").value),
+    });
+    $("app-settings-dialog").close();
+    toast("Настройки сохранены");
+    await refresh();
+  } catch (error) { $("app-settings-error").textContent = error.message; }
+  finally { button.disabled = false; }
+};

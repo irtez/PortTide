@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "proxy": {
     "mode": "mixed",
     "socksPort": 17890,
@@ -13,5 +13,10 @@
       "userAgent": "Happ/2.0.0"
     }
   ],
-  "refreshMinutes": 180
+  "refreshMinutes": 180,
+  "desktop": {
+    "startAtLogin": false,
+    "connectOnLaunch": true,
+    "background": true
+  }
 }

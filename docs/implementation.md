@@ -45,3 +45,7 @@ Remove the slogan and the large connection prompt after subscription setup. Keep
 User requested holding a new release while further improvements are discussed. Work stays in a local development checkpoint; do not tag, publish, package a release or replace the installed alpha.2 yet. Preview uses a separate port and private copy of data. Full Desktop Computer Use remains disabled; browser extension control is allowed.
 
 Port form refinement: Mixed displays only the shared HTTP/SOCKS5 port. Switching to separate reuses it as SOCKS5 and reveals the independently retained HTTP port; switching back hides HTTP without clearing it. New settings leave the HTTP port unset (0 in JSON, blank in the UI); existing saved values are preserved.
+
+## Windows lifecycle and distribution
+
+See [Windows daily-use implementation](windows-lifecycle.md) for the accepted behavior and verification. Settings schema 2 separates desktop preferences from session Stop. Per-data-directory locks and authenticated local handoff prevent duplicate cores; a native Win32 tray opens the existing web UI. Inno Setup installs per-user at a stable path; an update resume marker preserves pause without changing next-launch preferences. GitHub installer downloads require the official repository URL, advertised size and SHA-256 before execution. The current version number is intentionally unchanged pending release approval.

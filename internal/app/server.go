@@ -45,6 +45,9 @@ type Server struct {
 	jobs        sync.WaitGroup
 	results     map[string]TestResult
 	notice      string
+	update      UpdateState
+	openPanel   func(string) error
+	login       func(bool) error
 }
 
 func newServer(ctx context.Context, store *Store, host string) *Server {
@@ -59,6 +62,11 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("DELETE /api/sources/{id}", s.deleteSource)
 	mux.HandleFunc("POST /api/select", s.selectProfile)
 	mux.HandleFunc("POST /api/stop", s.stop)
+	mux.HandleFunc("POST /api/start", s.start)
+	mux.HandleFunc("POST /api/desktop", s.desktopSettings)
+	mux.HandleFunc("POST /api/instance/{action}", s.instanceAction)
+	mux.HandleFunc("POST /api/updates/check", s.checkUpdate)
+	mux.HandleFunc("POST /api/updates/install", s.installUpdate)
 	mux.HandleFunc("POST /api/settings", s.settings)
 	mux.HandleFunc("POST /api/tests", s.test)
 	mux.HandleFunc("POST /api/tests/cancel", s.cancelTest)
@@ -139,9 +147,13 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 			profiles = append(profiles, p)
 		}
 	}
+	notice := s.notice
+	if !running && active != "" && notice == "" {
+		notice = "Ядро остановилось. Выберите профиль для повторного запуска."
+	}
 	core := resolveCore(s.store.Settings.CorePath)
 	_, ce := os.Stat(core)
-	send(w, 200, map[string]any{"version": Version, "running": running, "active": active, "selected": s.store.Settings.Selected, "proxy": s.store.Settings.Proxy, "corePath": s.store.Settings.CorePath, "coreResolved": core, "coreAvailable": ce == nil, "refreshMinutes": s.store.Settings.RefreshMinutes, "sources": sources, "profiles": profiles, "job": s.job, "results": s.results, "notice": s.notice})
+	send(w, 200, map[string]any{"version": Version, "instanceId": s.token[:12], "running": running, "active": active, "selected": s.store.Settings.Selected, "proxy": s.store.Settings.Proxy, "corePath": s.store.Settings.CorePath, "coreResolved": core, "coreAvailable": ce == nil, "refreshMinutes": s.store.Settings.RefreshMinutes, "desktop": s.store.Settings.Desktop, "desktopSupported": desktopSupported(), "updates": s.update, "sources": sources, "profiles": profiles, "job": s.job, "results": s.results, "notice": notice})
 }
 func (s *Server) sourceIndex(id string) int {
 	for i, v := range s.store.Settings.Sources {
@@ -154,7 +166,6 @@ func (s *Server) sourceIndex(id string) int {
 func (s *Server) acceptCatalog(ctx context.Context, src Source, catalog Catalog) error {
 	running, active := s.runtime.Status()
 	oldCatalog, existed := s.store.Catalogs[src.ID]
-	oldSelected := s.store.Settings.Selected
 	oldProfile, oldFound := s.store.Profile(active)
 	if running && oldFound && oldProfile.SourceID == src.ID {
 		var replacement *Profile
@@ -184,13 +195,6 @@ func (s *Server) acceptCatalog(ctx context.Context, src Source, catalog Catalog)
 			_ = s.runtime.Apply(context.Background(), resolveCore(s.store.Settings.CorePath), oldProfile, s.store.Settings.Proxy)
 		}
 		return errors.New("could not save subscription cache")
-	}
-	if _, ok := s.store.Profile(oldSelected); !ok && oldSelected != "" {
-		s.store.Settings.Selected = ""
-		s.store.Settings.AutoStart = false
-		if e := s.store.SaveSettings(); e != nil {
-			return errors.New("cache updated but selection could not be saved")
-		}
 	}
 	return nil
 }
@@ -323,10 +327,7 @@ func (s *Server) deleteSource(w http.ResponseWriter, r *http.Request) {
 	}
 	old := s.store.Settings
 	s.store.Settings.Sources = append(append([]Source(nil), old.Sources[:idx]...), old.Sources[idx+1:]...)
-	if p, ok := s.store.Profile(s.store.Settings.Selected); ok && p.SourceID == id {
-		s.store.Settings.Selected = ""
-		s.store.Settings.AutoStart = false
-	}
+	// Retain the last choice so startup can report a fallback after removal.
 	if e := s.store.SaveSettings(); e != nil {
 		s.store.Settings = old
 		fail(w, 500, errors.New("could not save settings"))
@@ -361,7 +362,7 @@ func (s *Server) selectProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.store.Settings.Selected = p.ID
-	s.store.Settings.AutoStart = true
+	s.store.Settings.SelectedSource = p.SourceID
 	if e := s.store.SaveSettings(); e != nil {
 		s.store.Settings = old
 		if wasRunning && hasPrevious {
@@ -379,11 +380,6 @@ func (s *Server) stop(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.runtime.Stop()
-	s.store.Settings.AutoStart = false
-	if e := s.store.SaveSettings(); e != nil {
-		fail(w, 500, errors.New("proxy stopped, but restart preference could not be saved"))
-		return
-	}
 	send(w, 200, map[string]bool{"ok": true})
 }
 func (s *Server) settings(w http.ResponseWriter, r *http.Request) {
@@ -501,8 +497,9 @@ func (s *Server) refreshLoop() {
 }
 
 type Options struct {
-	DataDir, Listen, Core string
-	Open                  bool
+	DataDir, Listen, Core               string
+	Open, NoBrowser, Background, Resume bool
+	Command                             string
 }
 
 func DefaultDataDir() string {
@@ -520,6 +517,33 @@ func Run(o Options) error {
 	if e != nil {
 		return e
 	}
+	o.DataDir = dir
+	if o.Command != "" {
+		return runCommand(o)
+	}
+	if e = os.MkdirAll(dir, 0700); e != nil {
+		return e
+	}
+	unlock, e := lockInstance(dir)
+	if errors.Is(e, errInstanceRunning) {
+		if o.Background || o.NoBrowser || o.Resume {
+			return nil
+		}
+		return instanceCommand(dir, "open")
+	}
+	if e != nil {
+		return e
+	}
+	defer unlock()
+	host, _, e := net.SplitHostPort(o.Listen)
+	if e != nil || host != "127.0.0.1" {
+		return errors.New("web interface must listen on 127.0.0.1")
+	}
+	listener, e := net.Listen("tcp", o.Listen)
+	if e != nil {
+		return errors.New("PortTide web port is occupied; an instance may already be running")
+	}
+	defer listener.Close()
 	store, e := OpenStore(dir)
 	if e != nil {
 		return e
@@ -532,37 +556,46 @@ func Run(o Options) error {
 	if o.Core != "" {
 		store.Settings.CorePath = o.Core
 	}
-	host, _, e := net.SplitHostPort(o.Listen)
-	if e != nil || host != "127.0.0.1" {
-		return errors.New("web interface must listen on 127.0.0.1")
-	}
-	listener, e := net.Listen("tcp", o.Listen)
-	if e != nil {
-		return errors.New("PortTide web port is occupied; an instance may already be running")
-	}
-	defer listener.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	s := newServer(ctx, store, listener.Addr().String())
 	defer s.cancel()
-	server := &http.Server{Handler: s.handler(), ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second}
-	if store.Settings.AutoStart && store.Settings.Selected != "" {
-		if p, ok := store.Profile(store.Settings.Selected); ok {
-			if e := s.runtime.Apply(s.ctx, resolveCore(store.Settings.CorePath), p, store.Settings.Proxy); e != nil {
-				s.notice = e.Error()
-			}
-		} else {
-			s.notice = "previously selected profile is not in the local cache"
-		}
+	server := &http.Server{Handler: s.handler(), BaseContext: func(net.Listener) context.Context { return s.ctx }, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second}
+	s.openPanel = func(section string) error { return openBrowser("http://" + s.host + "/" + section) }
+	s.login = func(enabled bool) error { return setLogin(enabled, o) }
+	connect := store.Settings.Desktop.ConnectOnLaunch
+	if o.Resume {
+		connect = consumeResume(store, connect)
+	}
+	if connect {
+		s.startSelected(ctx)
 	}
 	url := "http://" + listener.Addr().String()
 	log.Printf("PortTide %s listening on %s", Version, url)
 	fmt.Println(url)
 	serveErr := make(chan error, 1)
+	openAtLaunch := shouldOpenPanel(o, store.Settings)
 	go func() { serveErr <- server.Serve(listener) }()
-	go s.refreshLoop()
-	if o.Open {
-		_ = openBrowser(url)
+	if e = writeJSON(filepath.Join(dir, "instance.json"), instanceInfo{Host: s.host, Token: s.token}); e != nil {
+		s.cancel()
+		s.runtime.Stop()
+		return e
+	}
+	defer os.Remove(filepath.Join(dir, "instance.json"))
+	closeDesktop, e := startDesktop(s)
+	if e != nil {
+		s.mu.Lock()
+		s.notice = "Не удалось показать значок в трее: " + e.Error()
+		s.mu.Unlock()
+	}
+	if closeDesktop != nil {
+		defer closeDesktop()
+	}
+	s.jobs.Add(2)
+	go func() { defer s.jobs.Done(); s.refreshLoop() }()
+	go func() { defer s.jobs.Done(); s.updateLoop() }()
+	if openAtLaunch {
+		_ = s.openPanel("")
 	}
 	select {
 	case <-s.ctx.Done():
@@ -572,9 +605,10 @@ func Run(o Options) error {
 		}
 	}
 	s.cancel()
-	s.jobs.Wait()
-	s.runtime.Stop()
 	shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return server.Shutdown(shutdown)
+	err := server.Shutdown(shutdown)
+	s.jobs.Wait()
+	s.runtime.Stop()
+	return err
 }

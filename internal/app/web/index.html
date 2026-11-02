@@ -36,7 +36,7 @@
         ></small
         ><button id="open-settings" class="secondary full">
           Настройки прокси
-        </button>
+        </button><button id="open-app-settings" class="secondary full">Приложение</button>
       </div>
     </aside>
     <main>
@@ -60,6 +60,8 @@
         class="subscription-summary hidden"
         aria-label="Информация подписки"
       ></section>
+      <div id="connection-notice" class="notice hidden" role="status"></div>
+      <div id="update-notice" class="notice hidden"><span id="update-notice-text"></span> <button id="open-update" class="text-button">Подробнее</button></div>
       <div id="notice" class="notice hidden" role="status"></div>
 
       <section class="catalog-panel">
@@ -239,7 +241,7 @@
         </div>
         <p class="muted small">
           Все входы слушают только 127.0.0.1. Эти параметры можно указать в
-          Clash или другом приложении.
+          браузере или другом приложении.
         </p>
         <div class="proxy-endpoint">
           <code id="proxy-address"></code
@@ -295,31 +297,31 @@
           ><input id="proxy-udp" type="checkbox" /> UDP через SOCKS5, если
           профиль его поддерживает</label
         >
-        <details>
-          <summary>Ядро и обновление подписок</summary>
-          <label
-            >Путь к Xray<input
-              id="core-path"
-              placeholder="Автоматически из папки core" /></label
-          ><label
-            >Интервал обновления, минут<input
-              id="refresh-minutes"
-              type="number"
-              min="5"
-              max="10080"
-              required
-          /></label>
-          <p class="muted small">
-            Активный профиль восстанавливается при следующем запуске PortTide.
-            Кнопка «Остановить» отключает это восстановление.
-          </p>
-        </details>
         <p id="settings-error" class="form-error" role="alert"></p>
         <div class="dialog-actions">
-          <button type="button" id="shutdown" class="danger-text">
-            Завершить PortTide</button
-          ><button type="submit" class="primary">Сохранить</button>
+          <button type="button" data-close="settings-dialog" class="secondary">Отмена</button><button type="submit" class="primary">Сохранить</button>
         </div>
+      </form>
+    </dialog>
+    <dialog id="app-settings-dialog" aria-labelledby="app-settings-title">
+      <form id="app-settings-form">
+        <div class="dialog-heading"><h2 id="app-settings-title">Приложение</h2><button type="button" data-close="app-settings-dialog" class="icon-button" aria-label="Закрыть">×</button></div>
+        <label class="checkbox"><input id="start-at-login" type="checkbox" /> Запускать при входе в Windows</label>
+        <label class="checkbox"><input id="connect-on-launch" type="checkbox" /> Запускать прокси вместе с PortTide</label>
+        <label class="checkbox"><input id="background-launch" type="checkbox" /> Запускать в фоне</label>
+        <p class="muted small">Без автоматического открытия панели. Ярлык и значок в трее открывают её по нажатию.</p>
+        <details><summary>Ядро и подписки</summary>
+          <label>Путь к Xray<input id="core-path" placeholder="Комплектное ядро" /></label>
+          <p class="muted small">Оставьте пустым для комплектного ядра. Указанный вручную Xray не заменяется при обновлении.</p>
+          <label>Обновлять подписки каждые, минут<input id="refresh-minutes" type="number" min="5" max="10080" required /></label>
+        </details>
+        <section class="app-updates" aria-label="Обновление приложения">
+          <h3>Обновления</h3><p id="update-status" role="status"></p>
+          <div class="update-actions"><button id="check-updates" type="button" class="secondary">Проверить обновления</button><a id="release-notes" class="text-button hidden" target="_blank" rel="noopener noreferrer">Что нового</a><button id="install-update" type="button" class="primary hidden">Обновить и перезапустить</button></div>
+          <p id="update-restart-hint" class="muted small hidden">Во время установки соединения через прокси кратковременно прервутся.</p>
+        </section>
+        <p id="app-settings-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions"><button type="button" id="shutdown" class="danger-text">Завершить PortTide</button><button type="submit" class="primary">Сохранить</button></div>
       </form>
     </dialog>
     <dialog id="metadata-dialog">

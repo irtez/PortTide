@@ -46,14 +46,21 @@ type Source struct {
 	URL       string `json:"url"`
 	UserAgent string `json:"userAgent"`
 }
+type DesktopSettings struct {
+	StartAtLogin    bool `json:"startAtLogin"`
+	ConnectOnLaunch bool `json:"connectOnLaunch"`
+	Background      bool `json:"background"`
+}
+
 type Settings struct {
-	Schema         int           `json:"schema"`
-	CorePath       string        `json:"corePath"`
-	Proxy          ProxySettings `json:"proxy"`
-	Sources        []Source      `json:"sources"`
-	Selected       string        `json:"selected"`
-	AutoStart      bool          `json:"autoStart"`
-	RefreshMinutes int           `json:"refreshMinutes"`
+	Schema         int             `json:"schema"`
+	CorePath       string          `json:"corePath"`
+	Proxy          ProxySettings   `json:"proxy"`
+	Sources        []Source        `json:"sources"`
+	Selected       string          `json:"selected"`
+	SelectedSource string          `json:"selectedSource,omitempty"`
+	Desktop        DesktopSettings `json:"desktop"`
+	RefreshMinutes int             `json:"refreshMinutes"`
 }
 type Profile struct {
 	ID        string          `json:"id"`
@@ -85,7 +92,7 @@ func token() string {
 	return hex.EncodeToString(b)
 }
 func Defaults() Settings {
-	return Settings{Schema: 1, Proxy: ProxySettings{Mode: "mixed", SOCKSPort: 17890, HTTPPort: 0, Auth: true, Username: "porttide", Password: token()[:24], UDP: true}, Sources: []Source{}, RefreshMinutes: 180}
+	return Settings{Schema: 2, Desktop: DesktopSettings{ConnectOnLaunch: true, Background: true}, Proxy: ProxySettings{Mode: "mixed", SOCKSPort: 17890, HTTPPort: 0, Auth: true, Username: "porttide", Password: token()[:24], UDP: true}, Sources: []Source{}, RefreshMinutes: 180}
 }
 func OpenStore(dir string) (*Store, error) {
 	if e := os.MkdirAll(dir, 0700); e != nil {
@@ -99,7 +106,18 @@ func OpenStore(dir string) (*Store, error) {
 	} else if !os.IsNotExist(e) {
 		return nil, e
 	}
-	if s.Settings.Schema != 1 {
+	if s.Settings.Schema == 1 {
+		// Legacy autoStart was toggled by Stop, not a durable launch preference.
+		if b, err := os.ReadFile(filepath.Join(dir, "settings.json")); err == nil {
+			if _, err = os.Stat(filepath.Join(dir, "settings.v1.backup.json")); os.IsNotExist(err) {
+				if err = atomicWrite(filepath.Join(dir, "settings.v1.backup.json"), b); err != nil {
+					return nil, err
+				}
+			}
+		}
+		s.Settings.Schema = 2
+	}
+	if s.Settings.Schema != 2 {
 		return nil, errors.New("unsupported settings schema")
 	}
 	if e := s.Settings.Proxy.Validate(); e != nil {
@@ -131,6 +149,11 @@ func OpenStore(dir string) (*Store, error) {
 	}
 	if s.Catalogs == nil {
 		s.Catalogs = map[string]Catalog{}
+	}
+	if s.Settings.SelectedSource == "" {
+		if p, ok := s.Profile(s.Settings.Selected); ok {
+			s.Settings.SelectedSource = p.SourceID
+		}
 	}
 	if e := s.SaveSettings(); e != nil {
 		return nil, e

@@ -27,3 +27,7 @@ Corrected public CI passed on Windows and Linux: https://github.com/irtez/PortTi
 - Live warmed HTTPS latency completed 7/7 samples: median 40.24 ms, range 39.16–41.14 ms, adjacent-sample variation 0.81 ms (same explicit test profile).
 - Browser checks confirmed that Mixed exposes only the shared port; switching to separate retains that value as SOCKS5 and restores HTTP. Changing the shared port and switching back retained the independent HTTP value. An empty HTTP value stayed empty. Test edits were canceled rather than applied.
 - The moved stop action was exercised on the isolated preview listener. Address copying remains accessible in proxy settings; its existing handler is preserved. The real subscription link was restored in the private preview after the user noticed the disabled refresh button; refresh succeeded with 49 entries.
+
+## Windows daily use (local, unreleased)
+
+Implementation and detailed lifecycle/installer verification: [windows-lifecycle.md](windows-lifecycle.md). This adds tray/background preferences, per-user installation, authenticated instance handoff, update checks/staged installer download and web-panel reconnect. Actual isolated installer installation, running/paused upgrades and uninstall were tested on Windows. No new release/tag/publication and no changes to production Clash.

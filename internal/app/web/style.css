@@ -1129,3 +1129,8 @@ dialog.diagnostics-drawer {
 .two-columns.single-port {
   grid-template-columns: 1fr;
 }
+
+.sidebar-bottom .full + .full { margin-top: 8px; }
+.app-updates { border-top: 1px solid var(--border, #263c49); margin-top: 22px; padding-top: 12px; }
+.update-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+#app-settings-dialog { max-height: 90vh; overflow: auto; }
