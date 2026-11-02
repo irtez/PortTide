@@ -1,36 +1,47 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
 type Measurement struct {
-	Kind         string  `json:"kind"`
-	Name         string  `json:"name"`
-	Target       string  `json:"target"`
-	IP           string  `json:"ip,omitempty"`
-	Country      string  `json:"country,omitempty"`
-	Region       string  `json:"region,omitempty"`
-	Organization string  `json:"organization,omitempty"`
-	ASN          string  `json:"asn,omitempty"`
-	Value        float64 `json:"value,omitempty"`
-	Bytes        int64   `json:"bytes,omitempty"`
-	Seconds      float64 `json:"seconds,omitempty"`
-	Partial      bool    `json:"partial,omitempty"`
-	Error        string  `json:"error,omitempty"`
+	Kind          string  `json:"kind"`
+	Name          string  `json:"name"`
+	Target        string  `json:"target"`
+	IP            string  `json:"ip,omitempty"`
+	Country       string  `json:"country,omitempty"`
+	Region        string  `json:"region,omitempty"`
+	Organization  string  `json:"organization,omitempty"`
+	ASN           string  `json:"asn,omitempty"`
+	Value         float64 `json:"value,omitempty"`
+	Bytes         int64   `json:"bytes,omitempty"`
+	Seconds       float64 `json:"seconds,omitempty"`
+	Partial       bool    `json:"partial,omitempty"`
+	Error         string  `json:"error,omitempty"`
+	Warning       string  `json:"warning,omitempty"`
+	Streams       int     `json:"streams,omitempty"`
+	Samples       int     `json:"samples,omitempty"`
+	Failures      int     `json:"failures,omitempty"`
+	Min           float64 `json:"min,omitempty"`
+	Max           float64 `json:"max,omitempty"`
+	P95           float64 `json:"p95,omitempty"`
+	Jitter        float64 `json:"jitter,omitempty"`
+	WarmupBytes   int64   `json:"warmupBytes,omitempty"`
+	WarmupSeconds float64 `json:"warmupSeconds,omitempty"`
+	TrafficBytes  int64   `json:"trafficBytes,omitempty"`
+	Limit         string  `json:"limit,omitempty"`
 }
 type TestResult struct {
 	ProfileID    string        `json:"profileId"`
@@ -45,7 +56,7 @@ func proxyClient(p ProxySettings) *http.Client {
 	if p.Auth {
 		u.User = url.UserPassword(p.Username, p.Password)
 	}
-	return &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(u), DisableKeepAlives: true, TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 12 * time.Second}, Timeout: 20 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+	return &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(u), MaxIdleConns: 8, MaxIdleConnsPerHost: 4, MaxConnsPerHost: 4, DisableCompression: true, TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 12 * time.Second}, Timeout: 20 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) > 3 || req.URL.Scheme != "https" {
 			return errors.New("redirect refused")
 		}
@@ -72,97 +83,58 @@ func request(ctx context.Context, c *http.Client, target string) ([]byte, error)
 	return b, nil
 }
 func latency(ctx context.Context, c *http.Client) []Measurement {
+	return latencyWithProgress(ctx, c, nil)
+}
+func latencyWithProgress(ctx context.Context, c *http.Client, report progressReporter) []Measurement {
 	target := "https://www.gstatic.com/generate_204"
+	reportStage(report, "latency-warmup", 0, 0, 0)
+	warm, finish := context.WithTimeout(ctx, 5*time.Second)
+	_, _ = request(warm, c, target)
+	finish()
 	samples := []float64{}
 	ms := []Measurement{}
-	for i := 0; i < 3; i++ {
+	failures := 0
+	for i := 0; i < 7 && ctx.Err() == nil; i++ {
+		reportStage(report, "latency", 0, i, 7)
+		probe, done := context.WithTimeout(ctx, 5*time.Second)
 		start := time.Now()
-		_, e := request(ctx, c, target)
+		_, e := request(probe, c, target)
+		done()
 		m := Measurement{Kind: "latency", Name: fmt.Sprintf("HTTPS sample %d", i+1), Target: target}
 		if e != nil {
 			m.Error = e.Error()
+			failures++
 		} else {
 			m.Value = float64(time.Since(start).Microseconds()) / 1000
 			samples = append(samples, m.Value)
 		}
 		ms = append(ms, m)
-		if ctx.Err() != nil {
-			break
-		}
-	}
-	if len(samples) > 0 {
-		sort.Float64s(samples)
-		ms = append(ms, Measurement{Kind: "latency", Name: "Median", Target: target, Value: median(samples)})
-	}
-	return ms
-}
-
-type countingReader struct {
-	reader io.Reader
-	bytes  atomic.Int64
-}
-
-func (r *countingReader) Read(p []byte) (int, error) {
-	n, e := r.reader.Read(p)
-	r.bytes.Add(int64(n))
-	return n, e
-}
-func speed(ctx context.Context, c *http.Client) []Measurement {
-	result := []Measurement{}
-	for _, upload := range []bool{false, true} {
-		method, target, kind := "GET", "https://speed.cloudflare.com/__down?bytes=20000000", "download"
-		var body io.Reader
-		var counter *countingReader
-		if upload {
-			method, target, kind = "POST", "https://speed.cloudflare.com/__up", "upload"
-			counter = &countingReader{reader: bytes.NewReader(make([]byte, 4<<20))}
-			body = counter
-		}
-		testCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-		req, _ := http.NewRequestWithContext(testCtx, method, target, body)
-		if upload {
-			req.Header.Set("Content-Type", "application/octet-stream")
-			req.ContentLength = 4 << 20
-		}
-		start := time.Now()
-		resp, e := c.Do(req)
-		m := Measurement{Kind: kind, Name: "Cloudflare", Target: target}
-		if e != nil {
-			m.Error = "test failed or timed out"
-		} else {
-			if resp.StatusCode != 200 {
-				m.Error = fmt.Sprintf("HTTP %d", resp.StatusCode)
-			} else {
-				limit := int64(20_000_000)
-				if upload {
-					limit = 65536
-				}
-				n, readErr := io.Copy(io.Discard, io.LimitReader(resp.Body, limit+1))
-				m.Bytes = n
-				if upload {
-					m.Bytes = counter.bytes.Load()
-				}
-				m.Partial = !upload && m.Bytes > 0 && testCtx.Err() == context.DeadlineExceeded && ctx.Err() == nil
-				if readErr != nil && !m.Partial {
-					m.Error = "transfer interrupted; result is incomplete"
-				} else if n > limit {
-					m.Error = "response exceeded the test limit"
-				} else if m.Bytes == 0 || (upload && m.Bytes != 4<<20) {
-					m.Error = "server did not accept the complete transfer"
-				} else {
-					m.Seconds = time.Since(start).Seconds()
-					m.Value = float64(m.Bytes) * 8 / m.Seconds / 1e6
-				}
+		if i < 6 {
+			select {
+			case <-ctx.Done():
+			case <-time.After(150 * time.Millisecond):
 			}
-			resp.Body.Close()
-		}
-		cancel()
-		result = append(result, m)
-		if ctx.Err() != nil {
-			break
 		}
 	}
-	return result
+	summary := Measurement{Kind: "latency", Name: "Median", Target: target, Samples: len(samples), Failures: failures}
+	if len(samples) > 0 {
+		for i := 1; i < len(samples); i++ {
+			summary.Jitter += math.Abs(samples[i] - samples[i-1])
+		}
+		if len(samples) > 1 {
+			summary.Jitter /= float64(len(samples) - 1)
+		}
+		sort.Float64s(samples)
+		summary.Value = median(samples)
+		summary.Min = samples[0]
+		summary.Max = samples[len(samples)-1]
+		summary.P95 = samples[int(math.Ceil(float64(len(samples))*.95))-1]
+	} else {
+		summary.Error = "no successful HTTPS samples"
+	}
+	ms = append(ms, summary)
+	reportStage(report, "latency", 0, len(ms)-1, 7)
+	return ms
 }
 func geography(ctx context.Context, c *http.Client) []Measurement {
 	result := []Measurement{}
@@ -251,7 +223,11 @@ func geography(ctx context.Context, c *http.Client) []Measurement {
 	}
 	return result
 }
-func runDiagnostic(ctx context.Context, core, root string, p Profile, kind string) (result TestResult) {
+func runDiagnostic(ctx context.Context, core, root string, p Profile, kind string) TestResult {
+	return runDiagnosticWithProgress(ctx, core, root, p, kind, nil)
+}
+func runDiagnosticWithProgress(ctx context.Context, core, root string, p Profile, kind string, report progressReporter) (result TestResult) {
+	reportStage(report, "preparing", 0, 0, 0)
 	result = TestResult{ProfileID: p.ID, Kind: kind, At: time.Now().UTC(), Measurements: []Measurement{}}
 	defer func() {
 		if ctx.Err() != nil {
@@ -287,10 +263,11 @@ func runDiagnostic(ctx context.Context, core, root string, p Profile, kind strin
 	defer client.CloseIdleConnections()
 	switch kind {
 	case "latency":
-		result.Measurements = latency(ctx, client)
+		result.Measurements = latencyWithProgress(ctx, client, report)
 	case "speed":
-		result.Measurements = speed(ctx, client)
+		result.Measurements = speedWithProgress(ctx, client, report)
 	case "geo":
+		reportStage(report, "geo", 0, 0, 0)
 		result.Measurements = geography(ctx, client)
 	}
 	if ctx.Err() != nil {

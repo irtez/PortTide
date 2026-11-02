@@ -85,7 +85,7 @@ func token() string {
 	return hex.EncodeToString(b)
 }
 func Defaults() Settings {
-	return Settings{Schema: 1, Proxy: ProxySettings{Mode: "mixed", SOCKSPort: 17890, HTTPPort: 17891, Auth: true, Username: "porttide", Password: token()[:24], UDP: true}, Sources: []Source{}, RefreshMinutes: 180}
+	return Settings{Schema: 1, Proxy: ProxySettings{Mode: "mixed", SOCKSPort: 17890, HTTPPort: 0, Auth: true, Username: "porttide", Password: token()[:24], UDP: true}, Sources: []Source{}, RefreshMinutes: 180}
 }
 func OpenStore(dir string) (*Store, error) {
 	if e := os.MkdirAll(dir, 0700); e != nil {

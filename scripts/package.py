@@ -29,6 +29,7 @@ shutil.copy2(root/'examples/settings.json',bundle/'examples/settings.json')
 goroot=Path(subprocess.check_output([a.go,'env','GOROOT'],text=True).strip())
 (bundle/'third_party').mkdir()
 shutil.copy2(goroot/'LICENSE',bundle/'third_party/GO-LICENSE')
+shutil.copy2(root/'internal/app/web/flags/LICENSE',bundle/'third_party/FLAG-ICONS-LICENSE')
 archive=dist/(bundle.name+'.zip')
 with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
     for file in sorted(bundle.rglob('*')):

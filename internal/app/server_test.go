@@ -116,3 +116,38 @@ func TestPrivateSnapshotOptional(t *testing.T) {
 	}
 	t.Logf("profiles=%d supported=%d unsupported_reasons=%v", len(ps), supported, reasons)
 }
+
+func TestPortModesPreserveValuesAcrossSettingsReload(t *testing.T) {
+	s := testServer(t)
+	if s.store.Settings.Proxy.HTTPPort != 0 {
+		t.Fatal("new settings should leave the separate HTTP port unset")
+	}
+	p := s.store.Settings.Proxy
+	p.Mode = "separate"
+	p.SOCKSPort = 18600
+	p.HTTPPort = 18601
+	save := func() {
+		t.Helper()
+		w := call(s, "POST", "/api/settings", map[string]any{"proxy": p, "corePath": "", "refreshMinutes": 180})
+		if w.Code != 200 {
+			t.Fatal(w.Body.String())
+		}
+	}
+	save()
+	p.Mode = "mixed"
+	p.SOCKSPort = 18602
+	save()
+	loaded, e := OpenStore(s.store.Dir)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if loaded.Settings.Proxy.SOCKSPort != 18602 || loaded.Settings.Proxy.HTTPPort != 18601 || loaded.Settings.Proxy.Mode != "mixed" {
+		t.Fatal("switching mode discarded a stored port")
+	}
+	p = loaded.Settings.Proxy
+	p.Mode = "separate"
+	save()
+	if s.store.Settings.Proxy.HTTPPort != 18601 {
+		t.Fatal("separate HTTP port was regenerated")
+	}
+}

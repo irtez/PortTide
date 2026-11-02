@@ -14,15 +14,17 @@ PortTide imports unencrypted Xray JSON subscriptions, preserves profile names/em
 4. Inspect a profile, run diagnostics, and connect it.
 5. Configure your client to use `127.0.0.1:17890` as HTTP or SOCKS5. Open proxy settings for the generated username/password.
 
-The default is a mixed port with password authentication. A separate HTTP port is optional. All listeners bind to loopback. The native Xray SOCKS listener also accepts HTTP when separate mode is selected; the additional HTTP listener provides a distinct client endpoint.
+The default is a mixed port with password authentication. A separate HTTP port is optional and initially unset. Mixed and SOCKS5 share the same saved port value; the separate HTTP port is retained when hidden, and changing mode never resets either value. All listeners bind to loopback. The native Xray SOCKS listener also accepts HTTP when separate mode is selected; the additional HTTP listener provides a distinct client endpoint.
 
 Closing the browser tab does not stop the application. Use **Settings → Quit PortTide** to exit. Stop disables automatic profile restoration; otherwise the selected profile is restored when PortTide is launched again. The application does not install Windows startup entries automatically.
 
 ## Checks
 
-- HTTPS delay: three fresh requests to Google gstatic, with median of successful samples. This is application-layer latency, not ICMP ping.
-- Throughput: manual Cloudflare download (at most 20 MB) and upload (4 MiB), up to 15 seconds per direction. It measures a bounded transfer including connection overhead, not maximum line capacity.
+- HTTPS delay: a warmup request followed by seven samples over reusable connections, with median, range and variation of successful samples. This is application-layer latency, not ICMP ping.
+- Throughput: four parallel adaptive transfers per direction, a separate warmup (up to 3 seconds of requests), then up to 20 seconds of measurement. Each request is capped at 4 MiB; all warmup/measurement payload is capped at 1 GiB per direction. Warmup is excluded, uploads require successful server acknowledgement, and early limits/failures are reported. This is measured application goodput to Cloudflare, not a guarantee of maximum line capacity.
 - Geography: Cloudflare and ipify observe their exit IPs. ipwho.is and ipapi.co are queried explicitly for each observed IP. Conflicting results remain separate. Service failures/rate limits are shown rather than guessed.
+
+Diagnostics open in a side drawer without moving the profile list. Country flags are bundled SVGs and subscription notices/usage appear below the Profiles heading.
 
 Each diagnostic uses its own temporary Xray process/port. It never switches the production profile. Only one diagnostic runs at a time. Checks share the computer's physical bandwidth and use normal OS routing to reach proxy servers. Results currently last for the application session.
 

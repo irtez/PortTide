@@ -37,3 +37,11 @@ A clean user can launch a release, add a supported subscription, inspect names/m
 ## Next action
 
 Collect feedback on https://github.com/irtez/PortTide/releases/tag/v0.1.0-alpha.2 . Live upstream throughput and geography checks remain an explicit follow-up; they were not run during the user’s gaming session. Do not connect or replace an existing daily proxy automatically.
+
+## UI and diagnostics refinement — 2026-11-03 (local preview; no release requested)
+
+Remove the slogan and the large connection prompt after subscription setup. Keep connection/stop in a compact header, move address copying into proxy settings, and preserve every existing action. Show provider announcement/emoji legend and quota/expiry immediately below the Profiles title. Render country flags using bundled SVG assets. Open diagnostics in a side panel rather than scrolling past the whole catalog. Improve latency with warmup and seven samples; use persistent connections, four parallel adaptive transfers, excluded warmup, 20-second measurement windows and a strict 1 GiB payload budget per direction. Report progress and limits honestly; do not change Clash routing. Browser-extension UI automation is allowed; desktop-wide control is not.
+
+User requested holding a new release while further improvements are discussed. Work stays in a local development checkpoint; do not tag, publish, package a release or replace the installed alpha.2 yet. Preview uses a separate port and private copy of data. Full Desktop Computer Use remains disabled; browser extension control is allowed.
+
+Port form refinement: Mixed displays only the shared HTTP/SOCKS5 port. Switching to separate reuses it as SOCKS5 and reveals the independently retained HTTP port; switching back hides HTTP without clearing it. New settings leave the HTTP port unset (0 in JSON, blank in the UI); existing saved values are preserved.

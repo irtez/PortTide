@@ -25,11 +25,13 @@ import (
 var webFiles embed.FS
 
 type Job struct {
-	ID        string      `json:"id"`
-	ProfileID string      `json:"profileId"`
-	Kind      string      `json:"kind"`
-	Running   bool        `json:"running"`
-	Result    *TestResult `json:"result,omitempty"`
+	ID        string       `json:"id"`
+	ProfileID string       `json:"profileId"`
+	Kind      string       `json:"kind"`
+	Running   bool         `json:"running"`
+	Result    *TestResult  `json:"result,omitempty"`
+	StartedAt time.Time    `json:"startedAt"`
+	Progress  TestProgress `json:"progress"`
 }
 type Server struct {
 	mu          sync.Mutex
@@ -453,15 +455,15 @@ func (s *Server) test(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, errors.New("unknown diagnostic"))
 		return
 	}
-	ctx, cancel := context.WithTimeout(s.ctx, 120*time.Second)
+	ctx, cancel := context.WithTimeout(s.ctx, 180*time.Second)
 	s.jobCancel = cancel
-	s.job = Job{ID: token()[:16], ProfileID: p.ID, Kind: in.Kind, Running: true}
+	s.job = Job{ID: token()[:16], ProfileID: p.ID, Kind: in.Kind, Running: true, StartedAt: time.Now().UTC()}
 	core, root := resolveCore(s.store.Settings.CorePath), s.store.Dir
 	s.jobs.Add(1)
 	go func() {
 		defer s.jobs.Done()
 		defer cancel()
-		result := runDiagnostic(ctx, core, root, p, in.Kind)
+		result := runDiagnosticWithProgress(ctx, core, root, p, in.Kind, func(progress TestProgress) { s.mu.Lock(); s.job.Progress = progress; s.mu.Unlock() })
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		s.job.Running = false

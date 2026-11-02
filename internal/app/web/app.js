@@ -92,22 +92,13 @@ function findProfile(id) {
 function render() {
   $("version").textContent = "v" + state.version;
   $("profile-count").textContent = state.profiles.length;
-  $("runtime-badge").textContent = state.running
-    ? "Прокси запущен"
-    : "Остановлен";
+  const active = findProfile(state.active);
+  labelWithFlags(
+    $("active-name"),
+    state.running && active ? active.name : "Прокси выключен",
+  );
   $("runtime-badge").classList.toggle("online", state.running);
-  const active = findProfile(state.running ? state.active : state.selected);
-  $("active-name").textContent =
-    state.running && active
-      ? active.name
-      : active
-        ? "Готов к запуску: " + active.name
-        : state.profiles.length
-          ? "Выберите профиль для подключения"
-          : "Выберите свой первый профиль";
-  $("active-hint").textContent = state.running
-    ? "Приложения могут использовать этот вход. Доступность сети проверяется отдельно."
-    : "Профили можно проверять до подключения. Системная маршрутизация остаётся под вашим управлением.";
+  show("connection-details", state.sources.length > 0 || state.running);
   show("stop-proxy", state.running);
   const p = state.proxy;
   $("proxy-address").textContent =
@@ -117,15 +108,92 @@ function render() {
   $("auth-label").textContent = p.auth ? "С авторизацией" : "Без авторизации";
   const notice =
     state.notice ||
-    (!state.coreAvailable
-      ? "Ядро Xray не найдено. Используйте полную сборку или укажите путь в настройках."
-      : "");
+    (!state.coreAvailable ? "Xray не найден. Укажите путь в настройках." : "");
   $("notice").textContent = notice;
   show("notice", Boolean(notice));
   renderSources();
+  renderSubscriptionSummary();
   renderRows();
   renderDiagnostics();
+  renderProgress();
 }
+function subscriptionUsage(meta) {
+  const fields = {};
+  for (const part of (meta["subscription-userinfo"] || "").split(";")) {
+    const [key, value] = part.trim().split("=");
+    if (value !== undefined && value !== "" && Number.isFinite(Number(value)))
+      fields[key] = Number(value);
+  }
+  return fields;
+}
+function renderSubscriptionSummary() {
+  const box = $("subscription-summary"),
+    filter = $("source-filter").value;
+  const expanded = new Map(
+    Array.from(box.children, (e) => [e.dataset.source, e.open]),
+  );
+  box.replaceChildren();
+  const sources = state.sources.filter((s) => !filter || s.id === filter);
+  show("subscription-summary", sources.length > 0);
+  const active = findProfile(state.active || state.selected);
+  for (const [i, source] of sources.entries()) {
+    const m = source.metadata || {},
+      usage = subscriptionUsage(m),
+      card = document.createElement("details");
+    card.className = "subscription-card";
+    card.dataset.source = source.id;
+    card.open = expanded.has(source.id)
+      ? expanded.get(source.id)
+      : sources.length === 1 ||
+        active?.sourceId === source.id ||
+        (!active && i === 0);
+    const summary = text("summary", "", "subscription-heading"),
+      title = text("strong", source.name, "subscription-title"),
+      badges = text("span", "", "subscription-badges");
+    if (Number.isFinite(usage.upload) && Number.isFinite(usage.download)) {
+      let quota = num((usage.upload + usage.download) / 1e9, 1) + " ГБ";
+      if (Number.isFinite(usage.total))
+        quota +=
+          " / " + (usage.total === 0 ? "∞" : num(usage.total / 1e9, 1) + " ГБ");
+      badges.append(text("span", quota, "subscription-badge"));
+    }
+    if (usage.expire > 0) {
+      const expires = new Date(usage.expire * 1000);
+      if (!Number.isNaN(expires.getTime()))
+        badges.append(
+          text(
+            "span",
+            "до " + expires.toLocaleDateString(),
+            "subscription-badge" + (expires < Date.now() ? " expired" : ""),
+          ),
+        );
+    }
+    summary.append(title, badges);
+    card.append(summary);
+    const notes = [
+      ...new Set([m["announce"], m["profile-description"]].filter(Boolean)),
+    ];
+    for (const note of notes) {
+      const paragraph = text("p", "", "subscription-announcement");
+      labelWithFlags(paragraph, note);
+      card.append(paragraph);
+    }
+    if (!notes.length)
+      card.append(
+        text(
+          "p",
+          "Описание не передано поставщиком.",
+          "muted small subscription-announcement",
+        ),
+      );
+    if (source.error)
+      card.append(
+        text("p", source.error, "result-error subscription-announcement"),
+      );
+    box.append(card);
+  }
+}
+
 function renderSources() {
   const list = $("source-list"),
     filter = $("source-filter"),
@@ -141,9 +209,7 @@ function renderSources() {
       title,
       text(
         "div",
-        s.error
-          ? "Ошибка обновления · кеш сохранён"
-          : s.count + " записей · " + date(s.updatedAt),
+        s.error ? "Ошибка обновления · кеш сохранён" : date(s.updatedAt),
         "source-item-summary",
       ),
     );
@@ -188,7 +254,9 @@ function renderRows() {
       p.name.toLocaleLowerCase().includes(query),
   );
   $("filtered-count").textContent =
-    profiles.length + " / " + state.profiles.length;
+    profiles.length === state.profiles.length
+      ? String(profiles.length)
+      : profiles.length + " / " + state.profiles.length;
   show("empty", !state.profiles.length);
   show("profile-table-wrap", Boolean(profiles.length));
   show("no-matches", state.profiles.length > 0 && !profiles.length);
@@ -199,7 +267,7 @@ function renderRows() {
     row.dataset.id = p.id;
     row.classList.toggle("active", state.running && state.active === p.id);
     row.classList.toggle("selected", inspected === p.id);
-    row.querySelector(".profile-name").textContent = p.name;
+    labelWithFlags(row.querySelector(".profile-name"), p.name);
     row.querySelector(".profile-meta").textContent =
       p.protocols.join(" · ") +
       (state.running && state.active === p.id ? " · АКТИВЕН" : "");
@@ -216,7 +284,7 @@ function renderRows() {
     const latency = state.results[p.id + ":latency"]?.measurements.find(
       (m) => m.name === "Median",
     );
-    if (latency)
+    if (latency && !latency.error)
       row.querySelector(".latency-cell").textContent =
         num(latency.value, 0) + " мс";
     const geo =
@@ -224,9 +292,9 @@ function renderRows() {
         (m) => m.kind === "observer" && !m.error,
       ) || [];
     if (geo.length)
-      row.querySelector(".geo-cell").textContent = [
+      countryCell(row.querySelector(".geo-cell"), [
         ...new Set(geo.map((m) => m.country || m.ip)),
-      ].join(" / ");
+      ]);
     const speed = state.results[p.id + ":speed"]?.measurements.find(
       (m) => m.kind === "download" && !m.error,
     );
@@ -240,26 +308,70 @@ function inspect(id) {
   inspected = id;
   renderRows();
   renderDiagnostics();
-  $("diagnostics-panel").scrollIntoView({
-    behavior: "smooth",
-    block: "nearest",
-  });
+  const dialog = $("diagnostics-dialog");
+  if (!dialog.open) dialog.showModal();
+}
+function renderProgress() {
+  if (!state) return;
+  const job = state.job,
+    progress = job.progress || {};
+  show("test-progress", job.running);
+  show("test-progress-bar", job.running);
+  show("cancel-test", job.running);
+  show("open-test-job", Boolean(job.id && (job.running || job.result)));
+  if (!job.running) {
+    if (job.result)
+      $("open-test-job").textContent =
+        "✓ " + (kindName[job.kind] || "Проверка");
+    return;
+  }
+  const phases = {
+    preparing: "Подготовка",
+    "latency-warmup": "Прогрев · задержка",
+    latency: "Задержка",
+    geo: "IP и страна",
+    "download-warmup": "Прогрев · скачивание",
+    download: "Скачивание",
+    "upload-warmup": "Прогрев · отдача",
+    upload: "Отдача",
+  };
+  const elapsed = job.startedAt
+    ? Math.max(0, Math.floor((Date.now() - Date.parse(job.startedAt)) / 1000))
+    : 0;
+  const count = progress.total
+    ? " · " + progress.completed + "/" + progress.total
+    : "";
+  $("progress-text").textContent =
+    (phases[progress.phase] || kindName[job.kind] || "Проверка") +
+    count +
+    " · " +
+    elapsed +
+    " с";
+  $("open-test-job").textContent = "◷ " + (kindName[job.kind] || "Проверка");
+  const bar = $("test-progress-bar");
+  if (progress.total) {
+    bar.value = (100 * progress.completed) / progress.total;
+  } else if (progress.durationSeconds && progress.startedAt) {
+    bar.value = Math.min(
+      98,
+      (100 * (Date.now() - Date.parse(progress.startedAt))) /
+        1000 /
+        progress.durationSeconds,
+    );
+  } else {
+    bar.removeAttribute("value");
+  }
 }
 
 function renderDiagnostics() {
   if (!state) return;
   const p = findProfile(inspected);
-  $("diagnostic-title").textContent = p
-    ? p.name
-    : "Проверьте профиль перед выбором";
+  labelWithFlags($("diagnostic-title"), p ? p.name : "Проверка профиля");
   show("test-actions", Boolean(p));
-  show("cancel-test", state.job.running);
-  show("test-progress", state.job.running);
-  const tested = findProfile(state.job.profileId);
-  $("progress-text").textContent =
-    (kindName[state.job.kind] || "Проверка") + " · " + (tested?.name || "");
-  for (const b of document.querySelectorAll("[data-test]"))
-    b.disabled = !p?.supported || !state.coreAvailable || state.job.running;
+  renderProgress();
+  for (const button of document.querySelectorAll("[data-test]"))
+    button.disabled =
+      !p?.supported || !state.coreAvailable || state.job.running;
   const results = $("test-results");
   results.replaceChildren();
   let count = 0;
@@ -267,97 +379,152 @@ function renderDiagnostics() {
     const result = state.results[inspected + ":" + kind];
     if (!result) continue;
     count++;
-    const block = text("div", "", "result-block"),
+    const block = text("section", "", "result-block"),
       head = text("div", "", "result-heading");
     head.append(
       text("h3", kindName[kind]),
       text("span", date(result.at), "muted small"),
     );
     block.append(head);
-    if (result.error) block.append(text("div", result.error, "result-error"));
-    if (kind === "geo") {
-      block.append(
-        text(
-          "p",
-          "Наблюдатели показывают видимый им выход. Базы сравниваются для явно указанного IP; их ответы могут различаться.",
-          "geo-note",
-        ),
-      );
-      const wrap = text("div", "", "table-scroll"),
-        table = text("table", "", "geo-table"),
-        thead = document.createElement("thead"),
-        hr = document.createElement("tr");
-      for (const h of [
-        "Тип / источник",
-        "IP",
-        "Страна / город",
-        "ASN / организация",
-      ])
-        hr.append(text("th", h));
-      thead.append(hr);
-      table.append(thead);
-      const body = document.createElement("tbody");
-      for (const m of result.measurements) {
-        const row = document.createElement("tr");
-        row.append(
-          text(
-            "td",
-            (m.kind === "observer" ? "Наблюдатель · " : "База · ") + m.name,
-          ),
-          text("td", m.ip || "—"),
-          text(
-            "td",
-            m.error || [m.country, m.region].filter(Boolean).join(" · ") || "—",
-            m.error ? "result-error" : "",
-          ),
-          text(
-            "td",
-            [m.asn, m.organization].filter(Boolean).join(" · ") || "—",
-          ),
-        );
-        body.append(row);
-      }
-      table.append(body);
-      wrap.append(table);
-      block.append(wrap);
-    } else {
-      const grid = text("div", "", "result-grid");
-      for (const m of result.measurements) {
-        const card = text("div", "", "metric");
-        const label =
-          m.kind === "download"
-            ? "Скачивание ↓"
-            : m.kind === "upload"
-              ? "Отдача ↑"
-              : m.name === "Median"
-                ? "Медиана"
-                : m.name.replace("HTTPS sample ", "Замер ");
-        card.append(text("small", label));
-        if (m.error) card.append(text("p", m.error, "result-error"));
-        else {
-          card.append(
-            text(
-              "div",
-              num(m.value, m.kind === "latency" ? 0 : 1) +
-                (m.kind === "latency" ? " мс" : " Мбит/с"),
-              "metric-value",
-            ),
-          );
-          if (m.bytes)
-            card.append(
-              text(
-                "small",
-                num(m.bytes / 1e6) + " MB · " + num(m.seconds) + " с",
-              ),
-            );
-        }
-        grid.append(card);
-      }
-      block.append(grid);
-    }
+    if (result.error) block.append(text("p", result.error, "result-error"));
+    if (kind === "latency") renderLatency(block, result);
+    else if (kind === "speed") renderSpeed(block, result);
+    else renderGeography(block, result);
     results.append(block);
   }
-  show("diagnostic-empty", !count);
+  show("diagnostic-empty", !count && !state.job.running);
+}
+function metricCard(label, value, unit, subtitle) {
+  const card = text("div", "", "metric primary-metric");
+  card.append(
+    text("small", label),
+    text("div", value + (unit ? " " + unit : ""), "metric-value"),
+  );
+  if (subtitle) card.append(text("small", subtitle));
+  return card;
+}
+function renderLatency(block, result) {
+  const summary = result.measurements.find((m) => m.name === "Median"),
+    samples = result.measurements.filter((m) => m.name !== "Median");
+  if (!summary) return;
+  if (summary.error) {
+    block.append(text("p", summary.error, "result-error"));
+    return;
+  }
+  const grid = text("div", "", "result-grid");
+  grid.append(
+    metricCard(
+      "Медиана",
+      num(summary.value, 0),
+      "мс",
+      summary.samples
+        ? "Диапазон " + num(summary.min, 0) + "–" + num(summary.max, 0) + " мс"
+        : "",
+    ),
+  );
+  const successful = summary.samples ?? samples.filter((m) => !m.error).length,
+    total = successful + (summary.failures || 0);
+  grid.append(
+    metricCard(
+      "Ответы",
+      successful + " / " + total,
+      "",
+      summary.jitter !== undefined
+        ? "Колебания " + num(summary.jitter, 1) + " мс"
+        : "",
+    ),
+  );
+  block.append(grid);
+  const detail = document.createElement("details");
+  detail.className = "sample-details";
+  detail.append(text("summary", "Все замеры"));
+  const list = text("div", "");
+  for (const [i, m] of samples.entries())
+    list.append(
+      text(
+        "div",
+        i + 1 + ". " + (m.error || num(m.value, 1) + " мс"),
+        m.error ? "result-error" : "",
+      ),
+    );
+  detail.append(list);
+  block.append(detail);
+}
+function renderSpeed(block, result) {
+  const grid = text("div", "", "result-grid");
+  for (const m of result.measurements) {
+    const label = m.kind === "download" ? "Скачивание ↓" : "Отдача ↑";
+    let card;
+    if (m.error) {
+      card = text("div", "", "metric");
+      card.append(text("small", label), text("p", m.error, "result-error"));
+    } else {
+      card = metricCard(
+        label,
+        num(m.value, 1),
+        "Мбит/с",
+        num(m.seconds, 1) + " с · " + (m.streams || 1) + " потока",
+      );
+      if (m.warning) card.append(text("p", m.warning, "result-warning"));
+    }
+    grid.append(card);
+  }
+  block.append(grid);
+  const details = document.createElement("details");
+  details.className = "sample-details";
+  details.append(text("summary", "Объём и методика"));
+  details.append(
+    text(
+      "p",
+      "Cloudflare. Прогрев исключён из расчёта; для отдачи учитываются передачи с подтверждённым завершением.",
+    ),
+  );
+  for (const m of result.measurements) {
+    if (m.trafficBytes)
+      details.append(
+        text(
+          "div",
+          (m.kind === "download" ? "↓ " : "↑ ") +
+            num(m.trafficBytes / 1048576, 1) +
+            " МиБ с прогревом · " +
+            (m.samples || 0) +
+            " завершённых передач",
+        ),
+      );
+  }
+  block.append(details);
+}
+function renderGeography(block, result) {
+  const wrap = text("div", "", "table-scroll"),
+    table = text("table", "", "geo-table"),
+    thead = document.createElement("thead"),
+    header = document.createElement("tr");
+  for (const h of ["Источник", "IP", "Страна", "Провайдер / ASN"])
+    header.append(text("th", h));
+  thead.append(header);
+  table.append(thead);
+  const body = document.createElement("tbody");
+  for (const m of result.measurements) {
+    const row = document.createElement("tr"),
+      country = text("td", "");
+    if (m.error) {
+      country.textContent = m.error;
+      country.className = "result-error";
+    } else {
+      countryCell(country, m.country ? [m.country] : []);
+      if (m.region) country.append(text("div", m.region, "muted small"));
+    }
+    row.append(
+      text("td", (m.kind === "observer" ? "Сайт · " : "База · ") + m.name),
+      text("td", m.ip || "—"),
+      country,
+      text("td", [m.organization, m.asn].filter(Boolean).join(" · ") || "—"),
+    );
+    body.append(row);
+  }
+  table.append(body);
+  wrap.append(table);
+  block.append(wrap);
 }
 function sourceDialog(s) {
   $("source-form").reset();
@@ -380,7 +547,7 @@ function settingsDialog() {
   const p = state.proxy;
   $("proxy-mode").value = p.mode;
   $("socks-port").value = p.socksPort;
-  $("http-port").value = p.httpPort;
+  $("http-port").value = p.httpPort || "";
   $("proxy-auth").checked = p.auth;
   $("proxy-user").value = p.username;
   $("proxy-password").value = p.password;
@@ -395,7 +562,14 @@ function settingsDialog() {
   $("settings-dialog").showModal();
 }
 function updateSettingsControls() {
-  $("http-port").disabled = $("proxy-mode").value === "mixed";
+  const mixed = $("proxy-mode").value === "mixed";
+  show("http-port-field", !mixed);
+  $("http-port").disabled = mixed;
+  $("http-port").required = !mixed;
+  $("socks-port-title").textContent = mixed
+    ? "Порт HTTP / SOCKS5"
+    : "Порт SOCKS5";
+  $("proxy-port-fields").classList.toggle("single-port", mixed);
   $("proxy-user").disabled = $("proxy-password").disabled =
     !$("proxy-auth").checked;
 }
@@ -423,7 +597,10 @@ for (const id of ["open-settings", "connection-details"])
 for (const b of document.querySelectorAll("[data-close]"))
   b.onclick = () => $(b.dataset.close).close();
 $("search").oninput = renderRows;
-$("source-filter").onchange = renderRows;
+$("source-filter").onchange = () => {
+  renderRows();
+  renderSubscriptionSummary();
+};
 $("proxy-mode").onchange = $("proxy-auth").onchange = updateSettingsControls;
 $("show-password").onchange = () =>
   ($("proxy-password").type = $("show-password").checked ? "text" : "password");
@@ -437,7 +614,7 @@ $("profiles").onclick = (e) => {
       b.disabled = true;
       try {
         await api("/select", { id });
-        toast("Профиль применён. Можно проверить соединение.");
+        toast("Профиль подключён");
       } finally {
         b.disabled = false;
       }
@@ -533,7 +710,17 @@ $("shutdown").onclick = () => {
     });
 };
 refresh();
-setInterval(refresh, 3000);
+setInterval(refresh, 2000);
+setInterval(renderProgress, 1000);
+$("open-test-job").onclick = () => {
+  if (state?.job?.profileId) inspect(state.job.profileId);
+};
+$("diagnostics-dialog").addEventListener("close", () => {
+  const row = Array.from($("profiles").children).find(
+    (r) => r.dataset.id === inspected,
+  );
+  row?.querySelector("[data-action=inspect]")?.focus({ preventScroll: true });
+});
 
 function friendlyMetadata(meta) {
   const labels = {

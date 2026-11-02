@@ -809,3 +809,323 @@ summary {
     animation: none !important;
   }
 }
+
+/* Compact profile workspace */
+:root {
+  scrollbar-gutter: stable;
+}
+.page-header {
+  margin-bottom: 18px;
+  gap: 18px;
+}
+.page-header h1 {
+  font-size: 27px;
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
+.connection-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  background: none;
+  padding: 5px 0;
+  min-width: 0;
+  max-width: 360px;
+  text-align: left;
+  font-size: 12px;
+}
+.connection-mini #active-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.status-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #5d7380;
+}
+.status-dot.online {
+  background: var(--accent);
+}
+.subscription-summary {
+  margin-bottom: 20px;
+  display: grid;
+  gap: 10px;
+}
+.subscription-card {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #111d27;
+  padding: 0;
+  overflow: hidden;
+}
+.subscription-heading {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 13px 18px;
+  list-style: none;
+}
+.subscription-heading::-webkit-details-marker {
+  display: none;
+}
+.subscription-heading:before {
+  content: "›";
+  font-size: 20px;
+  line-height: 1;
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+.subscription-card[open] .subscription-heading:before {
+  transform: rotate(90deg);
+}
+.subscription-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.subscription-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-left: auto;
+}
+.subscription-badge {
+  padding: 3px 9px;
+  background: #1a2b36;
+  border-radius: 5px;
+  font-size: 11px;
+  color: #b4cbd5;
+}
+.subscription-badge.expired {
+  color: var(--error);
+}
+.subscription-announcement {
+  white-space: pre-line;
+  margin: 0 18px 15px 43px;
+  line-height: 1.65;
+  font-size: 13px;
+  color: #c3d1db;
+}
+.subscription-announcement + .subscription-announcement {
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.country-flag {
+  display: inline-block;
+  width: 24px;
+  height: 18px;
+  object-fit: cover;
+  vertical-align: -4px;
+  border-radius: 3px;
+  margin-right: 5px;
+  box-shadow: 0 0 0 1px #ffffff14;
+}
+.profile-name {
+  font-weight: 500;
+}
+.profile-meta {
+  padding-left: 0;
+  font-size: 10px;
+}
+.catalog-count {
+  color: var(--muted);
+  font-size: 12px;
+}
+.catalog-panel > .panel-heading {
+  padding: 14px 18px;
+}
+.catalog-panel .filters {
+  margin-left: auto;
+}
+.profile-table td {
+  padding: 12px 18px;
+}
+.proxy-endpoint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: #0d1821;
+  border: 1px solid var(--border);
+  padding: 12px;
+  border-radius: 7px;
+  margin: 14px 0;
+}
+.proxy-endpoint code {
+  font-size: 12px;
+  color: var(--accent);
+}
+.proxy-endpoint #auth-label {
+  flex-basis: 100%;
+}
+dialog.diagnostics-drawer {
+  inset: 0 0 0 auto;
+  margin: 0;
+  width: min(710px, 100vw);
+  height: 100%;
+  max-height: 100%;
+  max-width: 100%;
+  border-radius: 12px 0 0 12px;
+  padding: 24px;
+}
+.diagnostics-drawer .diagnostics-panel {
+  border: 0;
+  margin: 0;
+  background: none;
+  padding: 0;
+  overflow: visible;
+}
+.diagnostics-drawer .panel-heading {
+  padding: 0 0 18px;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+.diagnostics-drawer .panel-heading h2 {
+  font-size: 19px;
+  margin-top: 7px;
+  line-height: 1.4;
+}
+.diagnostics-drawer .test-actions {
+  margin: 0;
+  display: flex;
+  gap: 10px;
+}
+.diagnostics-drawer .test-actions > button {
+  flex: 1;
+  padding: 12px;
+}
+.diagnostics-drawer .test-progress {
+  margin: 20px 0 8px;
+}
+.test-progress #cancel-test {
+  margin-left: auto;
+}
+.diagnostics-drawer #test-results,
+.diagnostics-drawer .diagnostic-empty {
+  margin-left: 0;
+  margin-right: 0;
+}
+.diagnostics-drawer progress {
+  display: block;
+  width: 100%;
+  height: 5px;
+  border: 0;
+  border-radius: 5px;
+  accent-color: var(--accent);
+}
+.diagnostics-drawer .result-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.metric.primary-metric .metric-value {
+  font-size: 29px;
+}
+.sample-details {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.test-help {
+  margin-top: 24px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.test-help p {
+  margin: 10px 0;
+  line-height: 1.7;
+}
+.result-warning {
+  font-size: 11px;
+  color: #e6c28e;
+  margin-top: 7px;
+}
+.geo-table td:first-child {
+  min-width: 110px;
+}
+@media (max-width: 1000px) {
+  .header-actions {
+    gap: 8px;
+  }
+  .connection-mini {
+    max-width: 200px;
+  }
+  .subscription-announcement {
+    margin-left: 18px;
+  }
+  .subscription-heading {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .subscription-badges {
+    gap: 5px;
+  }
+  .page-header {
+    flex-direction: row;
+    align-items: center;
+  }
+  .page-header > .primary {
+    width: auto;
+  }
+}
+@media (max-width: 650px) {
+  .page-header {
+    flex-wrap: wrap;
+  }
+  .header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .connection-mini {
+    max-width: 170px;
+  }
+  .subscription-badges {
+    margin-left: 25px;
+  }
+  .subscription-heading {
+    align-items: flex-start;
+  }
+  .diagnostics-drawer .test-actions {
+    gap: 6px;
+  }
+  .diagnostics-drawer .test-actions > button {
+    padding: 10px 6px;
+  }
+  dialog.diagnostics-drawer {
+    border-radius: 0;
+    padding: 18px;
+  }
+  .profile-table td {
+    padding: 12px;
+  }
+  .catalog-panel .filters {
+    width: 100%;
+    margin-left: 0;
+  }
+  .catalog-count {
+    display: none;
+  }
+}
+
+.page-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  padding: 12px 0;
+  box-shadow: 0 1px 0 var(--bg);
+}
+
+.two-columns.single-port {
+  grid-template-columns: 1fr;
+}

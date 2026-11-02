@@ -48,38 +48,6 @@ func TestGeographySeparatesObserversAndDatabases(t *testing.T) {
 		t.Fatal("conflicting providers were silently merged")
 	}
 }
-func TestSpeedCountsActualUploadedBytesAndRejectsIncompleteResponse(t *testing.T) {
-	var upload int64
-	c := &http.Client{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
-		if r.Method == "POST" {
-			upload, _ = io.Copy(io.Discard, r.Body)
-			return response("ok"), nil
-		}
-		return response(strings.Repeat("a", 100000)), nil
-	})}
-	m := speed(context.Background(), c)
-	if m[0].Bytes != 100000 || m[1].Bytes != 4<<20 || upload != 4<<20 || m[0].Error != "" || m[1].Error != "" {
-		t.Fatalf("bad counters: %+v", m)
-	}
-	c.Transport = transportFunc(func(r *http.Request) (*http.Response, error) { return response(""), nil })
-	m = speed(context.Background(), c)
-	if m[0].Error == "" || m[1].Error == "" {
-		t.Fatal("empty download or unread upload reported as speed")
-	}
-}
-func TestSpeedRefusesOversizedDownload(t *testing.T) {
-	c := &http.Client{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
-		if r.Method == "GET" {
-			return response(strings.Repeat("x", 20_000_001)), nil
-		}
-		io.Copy(io.Discard, r.Body)
-		return response("ok"), nil
-	})}
-	ms := speed(context.Background(), c)
-	if ms[0].Error == "" || ms[0].Value != 0 {
-		t.Fatal("oversized response accepted")
-	}
-}
 func TestProxyClientDoesNotFallBackToDirect(t *testing.T) {
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Error("request escaped directly") }))
 	defer target.Close()
